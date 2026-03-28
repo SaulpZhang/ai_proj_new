@@ -31,8 +31,9 @@ from funsearch.implementation import config as config_lib
 from funsearch.implementation import code_embedding
 
 import record_wandb
+import my_logging
 
-run = record_wandb.get_wandb_run()
+savelogger = my_logging.get_file_logger(__name__)
 
 Signature = tuple[float, ...]
 ScoresPerTest = Mapping[Any, float]
@@ -239,6 +240,7 @@ class ProgramsDatabase:
         # This is a program added at the beginning, so adding it to all islands.
         for island_id in range(len(self._islands)):
           self._register_program_in_island(program, island_id, scores_per_test)
+        self.save_best_programs(best_idx=0)
       else:
         self._register_program_in_island(program, island_id, scores_per_test)
 
@@ -246,6 +248,12 @@ class ProgramsDatabase:
       if (time.time() - self._last_reset_time > self._config.reset_period):
         self._last_reset_time = time.time()
         self.reset_islands()
+  
+
+  def save_best_programs(self, best_idx):
+    savelogger.info('-'*50)
+    savelogger.info(f'best island: {best_idx}, best score: {self._best_score_per_island[best_idx]}, best program: {self._best_program_per_island[best_idx]}')
+  
 
   def reset_islands(self) -> None:
     """Resets the weaker half of islands."""
@@ -256,6 +264,9 @@ class ProgramsDatabase:
     num_islands_to_reset = self._config.num_islands // 2
     reset_islands_ids = indices_sorted_by_score[:num_islands_to_reset]
     keep_islands_ids = indices_sorted_by_score[num_islands_to_reset:]
+
+    self.save_best_programs(best_idx=keep_islands_ids[-1])
+
     for island_id in reset_islands_ids:
       self._islands[island_id] = Island(
           self._template,
